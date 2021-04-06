@@ -11,13 +11,13 @@ near_sdk::setup_alloc!();
 
 #[near_bindgen]
 #[derive(BorshSerialize, BorshDeserialize, PanicOnDefault)]
-pub struct Contract {
+pub struct OCTToken {
     token: FungibleToken,
     metadata: LazyOption<FungibleTokenMetadata>,
 }
 
 #[near_bindgen]
-impl Contract {
+impl OCTToken {
     #[init]
     pub fn new(
         owner_id: ValidAccountId,
@@ -37,11 +37,11 @@ impl Contract {
     }
 }
 
-near_contract_standards::impl_fungible_token_core!(Contract, token);
-near_contract_standards::impl_fungible_token_storage!(Contract, token);
+near_contract_standards::impl_fungible_token_core!(OCTToken, token);
+near_contract_standards::impl_fungible_token_storage!(OCTToken, token);
 
 #[near_bindgen]
-impl FungibleTokenMetadataProvider for Contract {
+impl FungibleTokenMetadataProvider for OCTToken {
     fn ft_metadata(&self) -> FungibleTokenMetadata {
         unimplemented!()
     }
@@ -56,26 +56,68 @@ mod tests {
 
     const TOTAL_SUPPLY: Balance = 1_000_000_000_000_000;
 
+    fn get_context(predecessor_account_id: ValidAccountId) -> VMContextBuilder {
+        let mut builder = VMContextBuilder::new();
+        builder
+            .current_account_id(accounts(0))
+            .signer_account_id(predecessor_account_id.clone())
+            .predecessor_account_id(predecessor_account_id);
+        builder
+    }
+
+    fn new_token() -> OCTToken {
+        OCTToken::new(
+        accounts(0).into(),
+        TOTAL_SUPPLY.into(),
+        FungibleTokenMetadata {
+            spec: FT_METADATA_SPEC.to_string(),
+            name: "OCTToken".to_string(),
+            symbol: "OCT".to_string(),
+            icon: None,
+            reference: None,
+            reference_hash: None,
+            decimals: 24,
+        })
+    }
+
     #[test]
-    fn test_basics() {
-        let mut context = VMContextBuilder::new();
+    fn test_new() {
+        let mut context = get_context(accounts(0));
         testing_env!(context.build());
-        let contract = Contract::new(
-            accounts(1).into(),
-            TOTAL_SUPPLY.into(),
-            FungibleTokenMetadata {
-                spec: FT_METADATA_SPEC.to_string(),
-                name: "OCT_Token".to_string(),
-                symbol: "OCT".to_string(),
-                icon: None,
-                reference: None,
-                reference_hash: None,
-                decimals: 24,
-            },
-        );
-        assert_eq!(contract.ft_balance_of(accounts(1)), TOTAL_SUPPLY.into());
+        let token_contract = new_token();
+        testing_env!(context.is_view(true).build());
+        assert_eq!(token_contract.ft_total_supply().0, TOTAL_SUPPLY);
+        assert_eq!(token_contract.ft_balance_of(accounts(0)).0, TOTAL_SUPPLY);
+    }
+
+    #[test]
+    fn test_transfer() {
+        let mut context = get_context(accounts(1));
+        testing_env!(context.build());
+        let mut token_contract = new_token();
+
         testing_env!(context
-            .attached_deposit(125 * env::storage_byte_cost())
+            .storage_usage(env::storage_usage())
+            .attached_deposit(token_contract.storage_balance_bounds().min.into())
+            .predecessor_account_id(accounts(1))
             .build());
+        token_contract.storage_deposit(None, None);
+
+        let transfer_amount = TOTAL_SUPPLY / 5;
+        testing_env!(context
+            .storage_usage(env::storage_usage())
+            .attached_deposit(1)
+            .predecessor_account_id(accounts(0))
+            .build());
+        token_contract.ft_transfer(accounts(1), transfer_amount.into(), None);
+
+        testing_env!(context
+            .storage_usage(env::storage_usage())
+            .account_balance(env::account_balance())
+            .is_view(true)
+            .attached_deposit(0)
+            .build());
+        assert_eq!(token_contract.ft_balance_of(accounts(0)).0, (TOTAL_SUPPLY - transfer_amount));
+        assert_eq!(token_contract.ft_balance_of(accounts(1)).0, transfer_amount);
     }
 }
