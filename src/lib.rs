@@ -54,7 +54,8 @@ mod tests {
 
     use super::*;
 
-    const TOTAL_SUPPLY: Balance = 1_000_000_000_000_000;
+    const DECIMALS_BASE: Balance = 1000_000_000_000_000_000_000_000;
+    const TOTAL_SUPPLY: Balance = 100 * 1_000_000 * DECIMALS_BASE;
 
     fn get_context(predecessor_account_id: ValidAccountId) -> VMContextBuilder {
         let mut builder = VMContextBuilder::new();
@@ -67,17 +68,18 @@ mod tests {
 
     fn new_token() -> OCTToken {
         OCTToken::new(
-        accounts(0).into(),
-        TOTAL_SUPPLY.into(),
-        FungibleTokenMetadata {
-            spec: FT_METADATA_SPEC.to_string(),
-            name: "OCTToken".to_string(),
-            symbol: "OCT".to_string(),
-            icon: None,
-            reference: None,
-            reference_hash: None,
-            decimals: 24,
-        })
+            accounts(0).into(),
+            TOTAL_SUPPLY.into(),
+            FungibleTokenMetadata {
+                spec: FT_METADATA_SPEC.to_string(),
+                name: "OCTToken".to_string(),
+                symbol: "OCT".to_string(),
+                icon: None,
+                reference: None,
+                reference_hash: None,
+                decimals: 24,
+            },
+        )
     }
 
     #[test]
@@ -117,7 +119,10 @@ mod tests {
             .is_view(true)
             .attached_deposit(0)
             .build());
-        assert_eq!(token_contract.ft_balance_of(accounts(0)).0, (TOTAL_SUPPLY - transfer_amount));
+        assert_eq!(
+            token_contract.ft_balance_of(accounts(0)).0,
+            (TOTAL_SUPPLY - transfer_amount)
+        );
         assert_eq!(token_contract.ft_balance_of(accounts(1)).0, transfer_amount);
     }
 }
