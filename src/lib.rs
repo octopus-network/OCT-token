@@ -43,7 +43,7 @@ near_contract_standards::impl_fungible_token_storage!(OCTToken, token);
 #[near_bindgen]
 impl FungibleTokenMetadataProvider for OCTToken {
     fn ft_metadata(&self) -> FungibleTokenMetadata {
-        unimplemented!()
+        self.metadata.get().unwrap()
     }
 }
 
